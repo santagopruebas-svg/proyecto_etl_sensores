@@ -2,36 +2,39 @@
 import re
 
 # =================================================================
-# 1. Definición del Esquema de Salida (Estandarizado)
+# 1. Definición de ESQUEMAS DE SALIDA
 # =================================================================
 
-# Columnas de salida en orden estandarizado
-COLUMNAS_SALIDA = [
-    'Pasillo', 
-    'Anio', 
-    'Mes', 
-    'Dia', 
-    'Hora_10min', 
-    'FechaHora_Original', 
-    'Temp_Ambiente', 
-    'Temp_Evaporador', 
-    'Setpoint', 
-    'Desvio_Relativo', 
-    'Proceso_Actual', 
-    'Salida_REFR', 
-    'Salida_FANS', 
-    'Salida_DEFR'
+# Esquema A: SENSORES (Se agrega Llave_Comun y Pasillo_est)
+COLUMNAS_SALIDA_SENSORES = [
+    'Llave_Comun', 'Pasillo', 'Pasillo_est', # <--- NUEVAS COLUMNAS
+    'Anio', 'Mes', 'Dia', 'Hora_10min', 'FechaHora_Original', 
+    'Temp_Ambiente', 'Temp_Evaporador', 'Setpoint', 'Desvio_Relativo', 
+    'Proceso_Actual', 'Salida_REFR', 'Salida_FANS', 'Salida_DEFR'
 ]
 
-# Diccionario para mapear nombre de columna a su índice (para acceso rápido)
-INDICES_SALIDA = {col: i for i, col in enumerate(COLUMNAS_SALIDA)}
+# Esquema B: PRESIÓN (Se agrega Llave_Comun)
+COLUMNAS_SALIDA_PRESION = [
+    'Llave_Comun', 'Sistema', # <--- NUEVA COLUMNA
+    'Anio', 'Mes', 'Dia', 'Hora_10min', 'FechaHora_Original',
+    'Succion_PSI', 'Descarga_PSI', 'Aceite_PSI', 
+    'Descarga_C', 'Aceite_C'
+]
+
+# Esquema C: COMPRESORES (Se agrega Llave_Comun)
+COLUMNAS_SALIDA_COMPRESORES = [
+    'Llave_Comun', 'Modulo', # <--- NUEVA COLUMNA
+    'Anio', 'Mes', 'Dia', 'Hora_10min', 'FechaHora_Original',
+    'G1_Comp1_Estado', 'G1_Comp2_Estado', 'G1_Comp3_Estado',
+    'G1_Salida1_Estado', 'G2_Salida_OUT'
+]
 
 # =================================================================
-# 2. Mapeos de Columnas por Tipo de Archivo
+# 2. Mapeos de Columnas
 # =================================================================
 
-# Mapeo de columnas para el TIPO 1 (Ejemplo: P01, P02, P04, P18RS1, PULMON)
-MAPPING_TIPO_1 = {
+# --- SENSORES ---
+MAPPING_SENSORES_TIPO_1 = {
     'Fecha': 'FechaHora_Original',
     'Temperatura Ambiente': 'Temp_Ambiente',
     'Temperatura Evaporador': 'Temp_Evaporador',
@@ -43,117 +46,133 @@ MAPPING_TIPO_1 = {
     'Salida DEFR': 'Salida_DEFR',
 }
 
-# Mapeo de columnas para el TIPO 2 (Ejemplo: P03, P06, P18RS3)
-MAPPING_TIPO_2 = {
+MAPPING_SENSORES_TIPO_2 = {
     'Fecha': 'FechaHora_Original',
-    'Ambiente': 'Temp_Ambiente', # COLUMNA DIFERENTE
+    'Ambiente': 'Temp_Ambiente',
     'Evaporador': 'Temp_Evaporador',
-    'Setpoint actual': 'Setpoint', # COLUMNA DIFERENTE
-    'Desvío relativo': 'Desvio_Relativo', # COLUMNA DIFERENTE
+    'Setpoint actual': 'Setpoint',
+    'Desvío relativo': 'Desvio_Relativo',
     'Proceso actual': 'Proceso_Actual',
     'Salida REFR': 'Salida_REFR',
     'Salida FANS': 'Salida_FANS',
     'Salida DEFR': 'Salida_DEFR',
 }
 
-# Mapeo de columnas para el TIPO 8 (Ejemplo: P08)
-MAPPING_TIPO_8 = {
+# --- PRESIÓN ---
+MAPPING_PRESION = {
     'Fecha': 'FechaHora_Original',
-    'Temperatura Ambiente': 'Temp_Ambiente',
-    'Evaporador': 'Temp_Evaporador', # COLUMNA DIFERENTE
-    'Setpoint actual': 'Setpoint', # COLUMNA DIFERENTE
-    'Desvío relativo al Setpoint': 'Desvio_Relativo',
-    # Nota: 'Proceso actual' falta en el origen, se manejará como columna vacía/nula
-    'Salida REFR': 'Salida_REFR',
-    'Salida FANS': 'Salida_FANS',
-    'Salida DEFR': 'Salida_DEFR',
+    'Succión (PSI)': 'Succion_PSI',
+    'Descarga (PSI)': 'Descarga_PSI',
+    'Aceite (PSI)': 'Aceite_PSI',
+    'Descarga (C)': 'Descarga_C',
+    'Aceite (C)': 'Aceite_C'
+}
+
+# --- COMPRESORES (NUEVO) ---
+# Nota: Usamos las columnas "(Alarma)" porque tienen el estado Conectado/Desconectado
+MAPPING_COMPRESORES = {
+    'Fecha': 'FechaHora_Original',
+    'G1 - Compresor 1 (Alarma)': 'G1_Comp1_Estado',
+    'G1 - Compresor 2 (Alarma)': 'G1_Comp2_Estado',
+    'G1 - compresor 3 (Alarma)': 'G1_Comp3_Estado', # Ojo: en el archivo "compresor" está en minúscula
+    'G1 - Salida 1': 'G1_Salida1_Estado',
+    'G2 - Salida OUT': 'G2_Salida_OUT'
 }
 
 # =================================================================
-# 3. Configuración por Tipo de Archivo (Basada en Contenido Interno y Agrupada)
+# 3. Configuración por Tipo de Archivo
 # =================================================================
 
-# Lista de nombres internos encontrados en la celda del Pasillo (Metadato 'Instrumento')
-CONFIG_TIPO_1_NAMES = [
-    "Pasillo 1", "Pasillo 2", "Pasillo 4", "Pasillo 5", "Pasillo 7", "Pasillo 9", "Pasillo 10", 
-    "Pulmón", "Pasillo 18 RS 1", "Pasillo18 RS 2", "Pasillo 18 RS 4",
+# Nombres internos (Celda B1)
+NAMES_SENSORES_TIPO_1 = [
+    "Pasillo 1", "Pasillo 2", "Pasillo 4", "Pasillo 5", "Pasillo 7", 
+    "Pasillo 9", "Pasillo 10", "Pulmón", 
+    "Pasillo 18 RS 1", "Pasillo 18 RS 2", "Pasillo 18 RS 4",
+    "Muelle 2", "Tunel 1", "Tunel 4", "Tunel 5"
 ]
 
-CONFIG_TIPO_2_NAMES = [
-    "Pasillo 3", "Pasillo 6", "Pasillo 18 RS 3",
+NAMES_SENSORES_TIPO_2 = [
+    "Pasillo 3", "Pasillo 6", "Pasillo 8", "Pasillo 18 RS 3",
+    "Muelle 1", "Muelle 3", "Muelle 4", "Muelle 5",
+    "Tunel 2", "Tunel 3", "Tunel 6"
 ]
 
-CONFIG_TIPO_8_NAMES = [
-    "Pasillo 8",
+NAMES_PRESION = [
+    "Sistema", "Sistema de Frio", "Presion", "Rack Principal"
 ]
 
-# Estructura de configuración por tipo, utilizando los nombres internos definidos arriba.
-CONFIGURACION_TIPO_1 = {
-    'tipo': 1,
-    'nombres_internos': CONFIG_TIPO_1_NAMES,
-    'data_start_row': 4, # La cabecera ('Fecha') está en la fila 4
-    'celda_pasillo': 'B1', # Celda donde se encuentra el nombre del pasillo/instrumento
-    'column_mapping': MAPPING_TIPO_1,
+NAMES_COMPRESORES = [
+    "MOD142 [201]", "MOD142", "Compresores" # Agrega aquí otros nombres si aparecen
+]
+
+# --- CONFIGURACIONES COMPLETAS ---
+
+CONFIG_SENSORES_1 = {
+    'tipo': 'SENSOR_1',
+    'nombres_internos': NAMES_SENSORES_TIPO_1,
+    'data_start_row': 4,
+    'celda_id': 'B1', 
+    'output_schema': COLUMNAS_SALIDA_SENSORES,
+    'id_column_name': 'Pasillo',
+    'column_mapping': MAPPING_SENSORES_TIPO_1,
+    'numeric_fields': ['Temp_Ambiente', 'Temp_Evaporador', 'Setpoint', 'Desvio_Relativo']
 }
 
-CONFIGURACION_TIPO_2 = {
-    'tipo': 2,
-    'nombres_internos': CONFIG_TIPO_2_NAMES,
-    'data_start_row': 4, # La cabecera ('Fecha') está en la fila 4
-    'celda_pasillo': 'B1', 
-    'column_mapping': MAPPING_TIPO_2,
+CONFIG_SENSORES_2 = {
+    'tipo': 'SENSOR_2',
+    'nombres_internos': NAMES_SENSORES_TIPO_2,
+    'data_start_row': 4,
+    'celda_id': 'B1', 
+    'output_schema': COLUMNAS_SALIDA_SENSORES,
+    'id_column_name': 'Pasillo',
+    'column_mapping': MAPPING_SENSORES_TIPO_2,
+    'numeric_fields': ['Temp_Ambiente', 'Temp_Evaporador', 'Setpoint', 'Desvio_Relativo']
 }
 
-CONFIGURACION_TIPO_8 = {
-    'tipo': 8,
-    'nombres_internos': CONFIG_TIPO_8_NAMES,
-    'data_start_row': 4, # La cabecera ('Fecha') está en la fila 4
-    'celda_pasillo': 'B1', 
-    'column_mapping': MAPPING_TIPO_8,
+CONFIG_PRESION = {
+    'tipo': 'PRESION',
+    'nombres_internos': NAMES_PRESION,
+    'data_start_row': 4,
+    'celda_id': 'B1', 
+    'output_schema': COLUMNAS_SALIDA_PRESION,
+    'id_column_name': 'Sistema',
+    'column_mapping': MAPPING_PRESION,
+    'numeric_fields': ['Succion_PSI', 'Descarga_PSI', 'Aceite_PSI', 'Descarga_C', 'Aceite_C']
 }
 
-# Lista principal que será iterada por la función de ayuda
+CONFIG_COMPRESORES = {
+    'tipo': 'COMPRESORES',
+    'nombres_internos': NAMES_COMPRESORES,
+    'data_start_row': 4, # Asumiendo misma estructura
+    'celda_id': 'B1',
+    'output_schema': COLUMNAS_SALIDA_COMPRESORES,
+    'id_column_name': 'Modulo',
+    'column_mapping': MAPPING_COMPRESORES,
+    'numeric_fields': [] # No hay campos numéricos a convertir (son Estados o Fechas)
+}
+
+# Lista maestra
 CONFIGURACION_ARCHIVOS = [
-    CONFIGURACION_TIPO_1,
-    CONFIGURACION_TIPO_2,
-    CONFIGURACION_TIPO_8
+    CONFIG_SENSORES_1, 
+    CONFIG_SENSORES_2,
+    CONFIG_PRESION,
+    CONFIG_COMPRESORES
 ]
 
 # =================================================================
 # 4. Funciones de Ayuda
 # =================================================================
 
-def obtener_configuracion_por_nombre_interno(nombre_pasillo_en_excel):
-    """
-    Busca la configuración en CONFIGURACION_ARCHIVOS basada en el nombre del pasillo 
-    leído directamente de la celda del Excel.
+def obtener_configuracion_por_nombre_interno(nombre_en_excel):
+    if not nombre_en_excel: return None
+    nombre_limpio = str(nombre_en_excel).strip()
     
-    Args:
-        nombre_pasillo_en_excel (str): El valor de la celda (ej: 'Pasillo 1').
-        
-    Returns:
-        dict or None: La configuración resuelta o None si no se encuentra.
-    """
-    if not nombre_pasillo_en_excel:
-        return None
-        
-    # Limpiar y estandarizar el nombre leído del Excel
-    nombre_limpio = str(nombre_pasillo_en_excel).strip()
-            
     for config in CONFIGURACION_ARCHIVOS:
         if nombre_limpio in config['nombres_internos']:
-            # Crear una copia de la configuración
-            resolved_config = config.copy()
-            # El nombre interno es el nombre del pasillo para la columna 'Pasillo'
-            resolved_config['nombre_pasillo'] = nombre_limpio
-            return resolved_config
-            
+            resolved = config.copy()
+            resolved['nombre_identificador'] = nombre_limpio
+            return resolved
     return None
 
 def obtener_celda_pasillo(filename):
-    """
-    Devuelve la celda donde leer el metadato del Pasillo. 
-    Actualmente asume 'B1' para todos los tipos de archivo.
-    """
-    # Como todos los tipos definidos usan 'B1' para el Pasillo/Instrumento, lo devolvemos
     return 'B1'

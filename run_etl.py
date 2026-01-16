@@ -1,111 +1,123 @@
-# run_etl.py
 import os
-import json 
+import json
+import shutil
 from src.extract import encontrar_archivos_por_procesar, leer_archivo_excel
 from src.transform import limpiar_y_estandarizar
 from src.load import guardar_datos_transformados
-from src.config import COLUMNAS_SALIDA
 
-# Función para cargar la configuración de rutas
+# Nota: Ya no importamos COLUMNAS_SALIDA fijo, porque ahora es dinámico.
+
 def cargar_configuracion_rutas(config_file="config.json"):
     """Carga las rutas desde el archivo JSON de configuración."""
     try:
-        # Nota: Asumiendo que config.json está en la carpeta raíz del proyecto
         with open(config_file, 'r', encoding='utf-8') as f:
             return json.load(f)
-    except FileNotFoundError:
-        print(f"ERROR: Archivo de configuración '{config_file}' no encontrado.")
+    except Exception as e:
+        print(f"ERROR Config: {e}")
         return None
-    except json.JSONDecodeError:
-        print(f"ERROR: El archivo '{config_file}' no es un JSON válido.")
-        return None
+
+def mover_a_archivados(filepath, carpeta_base_archivados, subcarpeta):
+    """
+    Mueve el archivo a Archive/Subcarpeta (ej: Archive/Pasillos/)
+    Sobrescribe si el archivo ya existe en el destino.
+    """
+    try:
+        destino_folder = os.path.join(carpeta_base_archivados, subcarpeta)
+        os.makedirs(destino_folder, exist_ok=True)
+        
+        filename = os.path.basename(filepath)
+        destino_path = os.path.join(destino_folder, filename)
+        
+        # Si existe, lo borramos para poder mover el nuevo
+        if os.path.exists(destino_path):
+            os.remove(destino_path)
+            
+        shutil.move(filepath, destino_path)
+        # print(f"   -> Archivado en: {subcarpeta}") 
+    except Exception as e:
+        print(f"ERROR al archivar {filepath}: {e}")
 
 def main():
-    """
-    Función principal que ejecuta el proceso ETL completo.
-    """
     print("==================================================")
-    print("         INICIO DEL PROCESO ETL FRÍO              ")
+    print("       INICIO DEL PROCESO ETL (MULTI-SCHEMA)      ")
     print("==================================================")
 
-    # Cargar rutas del archivo de configuración
-    config_paths = cargar_configuracion_rutas()
-    
-    if not config_paths:
-        print("ERROR: No se pudo cargar la configuración. Finalizando el proceso ETL.")
-        return
-        
-    # Usar las rutas del config.json
-    INPUT_FOLDER = config_paths.get("CARPETA_RAIZ_DATOS")
-    OUTPUT_FOLDER = config_paths.get("CARPETA_DESTINO_CSV")
-    
-    if not INPUT_FOLDER:
-        print("ERROR: La clave 'CARPETA_RAIZ_DATOS' no se encontró en config.json. Finalizando.")
-        return
-        
-    if not OUTPUT_FOLDER:
-        print("ERROR: La clave 'CARPETA_DESTINO_CSV' no se encontró en config.json. Finalizando.")
+    config = cargar_configuracion_rutas()
+    if not config: return
+
+    # Rutas generales
+    OUT_DIR_GENERAL = config.get("CARPETA_DESTINO_GENERAL")
+    ARCHIVE_DIR_GENERAL = config.get("CARPETA_ARCHIVADOS_GENERAL")
+    PROCESOS = config.get("RUTAS_PROCESO", {})
+
+    if not PROCESOS:
+        print("ADVERTENCIA: No se encontraron procesos definidos en 'RUTAS_PROCESO'.")
         return
 
-    # 1. FASE DE EXTRACCIÓN Y CONFIGURACIÓN
-    # Pasamos la ruta de la carpeta de entrada al extractor.
-    archivos_a_procesar_paths = encontrar_archivos_por_procesar(INPUT_FOLDER)
-    
-    if not archivos_a_procesar_paths:
-        print("\nNo se encontraron archivos .xlsx válidos para procesar.")
-        return
-
-    # Lista de listas, donde cada lista es una fila estandarizada
-    all_standardized_rows = [] 
-
-    for filepath in archivos_a_procesar_paths:
+    # Iterar sobre cada proceso configurado (PASILLOS, PRESION, COMPRESORES, etc.)
+    for nombre_proceso, rutas in PROCESOS.items():
+        print(f"\n>>> PROCESANDO GRUPO: {nombre_proceso}")
         
-        # leer_archivo_excel devuelve headers, data_rows, y la configuración resuelta
-        headers, data_rows, config = leer_archivo_excel(filepath)
+        input_folder = rutas.get("INPUT")
+        output_filename = rutas.get("OUTPUT_NAME")
         
-        if not data_rows or not config:
-            print(f"-> ERROR: Extracción o identificación fallida para {os.path.basename(filepath)}. Saltando.")
+        # Validaciones básicas
+        if not input_folder or not os.path.exists(input_folder):
+            print(f"   Advertencia: Carpeta de entrada no existe o no definida: {input_folder}")
             continue
-            
-        # 2. FASE DE TRANSFORMACIÓN
-        print(f"-> Iniciando Transformación para {config['nombre_pasillo']}...")
-        
-        # transformed_data es una lista de listas (cabecera + filas de datos)
-        transformed_data = limpiar_y_estandarizar(headers, data_rows, config)
-        
-        if transformed_data is not None:
-            
-            # Usamos list.extend() para concatenar los datos (sin la cabecera)
-            # transformed_data[0] es la cabecera estandarizada.
-            if len(transformed_data) > 1:
-                # Concatenar solo las filas de datos (a partir de índice 1)
-                all_standardized_rows.extend(transformed_data[1:]) 
-            
-            print(f"-> Transformación exitosa. Filas procesadas: {len(transformed_data) - 1}")
-        else:
-            print("-> ADVERTENCIA: La transformación resultó en datos vacíos o fallidos.")
 
-    # 3. FASE DE CARGA
-    if all_standardized_rows:
+        archivos = encontrar_archivos_por_procesar(input_folder)
         
-        # Agregar la cabecera estandarizada al inicio de los datos combinados
-        # COLUMNAS_SALIDA es la cabecera estandarizada
-        data_to_save = [COLUMNAS_SALIDA] + all_standardized_rows
-        
-        print("\n==================================================")
-        print(f"TOTAL: Filas procesadas y combinadas: {len(data_to_save) - 1}")
-        print("==================================================")
-        
-        # Guardar el archivo combinado (data_to_save incluye la cabecera)
-        guardar_datos_transformados(data_to_save, OUTPUT_FOLDER)
-    else:
-        print("\nNo se pudieron procesar datos de ningún archivo. No se generará el archivo de salida.")
+        if not archivos:
+            print("   No hay archivos nuevos para procesar.")
+            continue
+
+        buffer_proceso = []
+        schema_header_to_use = None # Aquí guardaremos la cabecera correcta para este lote
+
+        for filepath in archivos:
+            filename = os.path.basename(filepath)
+            
+            # 1. Extracción
+            # leer_archivo_excel cierra el archivo automáticamente ahora
+            headers, data_rows, conf = leer_archivo_excel(filepath)
+            
+            if not data_rows or not conf:
+                print(f"   [SALTADO] {filename} (No se identificó config o está vacío)")
+                continue
+            
+            # 2. Transformación
+            # Ahora devuelve una TUPLA: (Filas_Limpias, Cabecera_Usada)
+            resultado = limpiar_y_estandarizar(headers, data_rows, conf)
+            
+            if resultado:
+                cleaned_rows, current_schema_header = resultado
+                
+                # Acumular filas
+                buffer_proceso.extend(cleaned_rows)
+                
+                # Capturar la cabecera (Asumimos que todos los archivos de esta carpeta usan el mismo esquema)
+                schema_header_to_use = current_schema_header
+                
+                # 3. Archivado
+                mover_a_archivados(filepath, ARCHIVE_DIR_GENERAL, nombre_proceso.capitalize())
+                print(f"   [OK] {filename}")
+            else:
+                print(f"   [FALLO TRANSFORMACIÓN] {filename}")
+
+        # 4. Carga (Guardar CSV consolidado del proceso)
+        if buffer_proceso and schema_header_to_use:
+            # Construimos la data final: Cabecera + Filas
+            full_data = [schema_header_to_use] + buffer_proceso
+            
+            guardar_datos_transformados(full_data, OUT_DIR_GENERAL, output_filename)
+            print(f"   -> ÉXITO: Se generó {output_filename} con {len(buffer_proceso)} registros.")
+        else:
+            print(f"   -> FINALIZADO: No se generaron datos válidos para {nombre_proceso}.")
+
+    print("\n==================================================")
+    print("             PROCESO ETL FINALIZADO               ")
+    print("==================================================")
 
 if __name__ == "__main__":
-    try:
-        import json
-    except ImportError:
-        print("ERROR: La librería 'json' es necesaria y debería ser estándar en Python.")
-        exit(1)
-        
     main()
