@@ -35,10 +35,10 @@ COLUMNAS_SALIDA_COMPRESORES = [
 # --- SENSORES ---
 MAPPING_SENSORES_TIPO_1 = {
     'Fecha': 'FechaHora_Original',
-    'Temperatura Ambiente': 'Temp_Ambiente',
-    'Temperatura Evaporador': 'Temp_Evaporador',
-    'Setpoint': 'Setpoint',
-    'Desvío relativo al Setpoint': 'Desvio_Relativo',
+    'Temperatura Ambiente  (°C)': 'Temp_Ambiente',
+    'Temperatura Evaporador  (°C)': 'Temp_Evaporador',
+    'Setpoint  (°C)': 'Setpoint',
+    'Desvío relativo al Setpoint  (°C)': 'Desvio_Relativo',
     'Proceso actual': 'Proceso_Actual',
     'Salida REFR': 'Salida_REFR',
     'Salida FANS': 'Salida_FANS',
@@ -47,10 +47,10 @@ MAPPING_SENSORES_TIPO_1 = {
 
 MAPPING_SENSORES_TIPO_2 = {
     'Fecha': 'FechaHora_Original',
-    'Ambiente': 'Temp_Ambiente',
-    'Evaporador': 'Temp_Evaporador',
-    'Setpoint actual': 'Setpoint',
-    'Desvío relativo': 'Desvio_Relativo',
+    'Ambiente  (°C)': 'Temp_Ambiente',
+    'Evaporador  (°C)': 'Temp_Evaporador',
+    'Setpoint actual  (°C)': 'Setpoint',
+    'Desvío relativo al Setpoint  (°C)': 'Desvio_Relativo',
     'Proceso actual': 'Proceso_Actual',
     'Salida REFR': 'Salida_REFR',
     'Salida FANS': 'Salida_FANS',
@@ -60,20 +60,20 @@ MAPPING_SENSORES_TIPO_2 = {
 # --- PRESIÓN ---
 MAPPING_PRESION = {
     'Fecha': 'FechaHora_Original',
-    'Presión del gas': 'Presion_Gas',
-    'Setpoint actual': 'Setpoint',
+    'Presión del gas  (psi)': 'Presion_Gas',
+    'Setpoint actual  (psi)': 'Setpoint',
     'Proceso actual': 'Proceso_Actual',
-    'Desvío relativo al Setpoint': 'Desvio_Relativo'
+    'Desvío relativo al Setpoint  (psi)': 'Desvio_Relativo'
 }
 
 # --- COMPRESORES (NUEVO) ---
 # Nota: Usamos las columnas "(Alarma)" porque tienen el estado Conectado/Desconectado
 MAPPING_COMPRESORES = {
     'Fecha': 'FechaHora_Original',
-    'G1 - Compresor 1 (Alarma)': 'G1_Comp1_Estado',
-    'G1 - Compresor 2 (Alarma)': 'G1_Comp2_Estado',
-    'G1 - compresor 3 (Alarma)': 'G1_Comp3_Estado', # Ojo: en el archivo "compresor" está en minúscula
-    'G1 - Salida 1': 'G1_Salida1_Estado',
+    'G1 - IN1 (Alarma)': 'G1_Comp1_Estado',
+    'G1 - IN2 (Alarma)': 'G1_Comp2_Estado',
+    'G1 - IN3 (Alarma)': 'G1_Comp3_Estado', # Ojo: en el archivo "compresor" está en minúscula
+    'G1 - Salida OUT': 'G1_Salida1_Estado',
     'G2 - Salida OUT': 'G2_Salida_OUT'
 }
 
@@ -85,14 +85,14 @@ MAPPING_COMPRESORES = {
 NAMES_SENSORES_TIPO_1 = [
     "Pasillo 1", "Pasillo 2", "Pasillo 4", "Pasillo 5", "Pasillo 7", 
     "Pasillo 9", "Pasillo 10", "Pulmón", 
-    "Pasillo 18 RS 1", "Pasillo 18 RS 2", "Pasillo 18 RS 4",
-    "Muelle 2", "Tunel 1", "Tunel 4", "Tunel 5"
+    "Pasillo 18 RS 1", "Pasillo18 RS 2", "Pasillo 18 RS 4",
+    "Muelle 2", "Tunel 1"
 ]
 
 NAMES_SENSORES_TIPO_2 = [
     "Pasillo 3", "Pasillo 6", "Pasillo 8", "Pasillo 18 RS 3",
     "Muelle 1", "Muelle 3", "Muelle 4", "Muelle 5",
-    "Tunel 2", "Tunel 3", "Tunel 6"
+    "Tunel 2", "Tunel 3"
 ]
 
 NAMES_PRESION = [
